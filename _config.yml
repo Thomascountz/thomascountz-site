@@ -1,0 +1,15 @@
+# Jekyll main configuration file
+# See https://jekyllrb.com/docs/configuration/ to further customize this file
+# Defaults settings https://jekyllrb.com/docs/configuration/#default-configuration
+
+title: "Thomas Countz"
+description: "Personal site for Thomas Countz"
+
+url: https://thomascountz.com # (optional) https://example.com, defaults to http://localhost:4000 in development
+
+permalink: date # how your URLs are built, see https://jekyllrb.com/docs/permalinks/#builtinpermalinkstyles
+
+timezone: America/New_York # see https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+markdown: kramdown
+highlighter: rouge

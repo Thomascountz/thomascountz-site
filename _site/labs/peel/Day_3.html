@@ -1,0 +1,172 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>Thomas Countz</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.svg">
+    <link rel="stylesheet" href="/assets/css/simple-grid.css">
+    <link rel="stylesheet" href="/assets/css/styles.css">
+    <link rel="stylesheet" href="/assets/css/highlight.css">
+  </head>
+  <body>
+    <div class="container">
+      <div class="row header">
+  <div class="col-12">
+    <a href="/"><img src="/assets/images/c-lab-logo.svg" width="200"/></a>
+  </div>
+</div>
+
+      <div class="row">
+        <p><a href="/labs/peel">← Back to Lab</a></p>
+
+<h1 id="day-3">Day 3</h1>
+
+<h2 id="sql-injection-vulnerability">SQL Injection Vulnerability</h2>
+
+<div class="language-diff highlighter-rouge"><div class="highlight"><pre class="highlight"><code>class Book
+...
+        
+  def update(title: nil, author: nil, isbn: nil)
+    title = title || @title
+    author = author || @author
+    isbn = isbn || @isbn
+    
+<span class="gd">-    SQLite3::Database.new("books.db").execute &lt;&lt;-SQL
+-      UPDATE books  
+-      SET title = '#{title}', author = '#{author}', isbn = '#{isbn}'
+-      WHERE id = #{@id};
+-SQL
+</span><span class="gi">+    SQLite3::Database.new("books.db").execute(
++      "UPDATE books  
++      SET title = ?, author = ?, isbn = ?
++      WHERE id = ?;",
++      [title, author, isbn, @id]
++    )
+</span>    Book.new(id: @id, title: title, author: author, isbn: isbn)
+  end
+
+...
+end
+</code></pre></div></div>
+
+<p>Small update of the <code class="highlighter-rouge">Book#update()</code> method.  The original version of this method used string interpolation in order to set the values for <code class="highlighter-rouge">title</code>, <code class="highlighter-rouge">author</code>, <code class="highlighter-rouge">isbn</code>, and <code class="highlighter-rouge">id</code>.</p>
+
+<p>I did this because, the query is just a string and I needed that string to be “filled out” at runtime, dynamically. However, this has serious security implications. This is a  <strong>prime</strong> example of how easy it is to introduce an <a href="https://www.owasp.org/index.php/SQL_Injection">SQL injection vulnerability</a>.</p>
+
+<blockquote>
+  <p>A SQL injection attack consists of insertion or “injection” of a SQL query via the input data from the client to the application.</p>
+</blockquote>
+
+<h3 id="the-attack">The Attack</h3>
+
+<p>Our innocent code gets a book from the database, using the <code class="highlighter-rouge">Book#find()</code> method:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">book</span> <span class="o">=</span> <span class="no">Book</span><span class="p">.</span><span class="nf">find</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="c1">#=&gt; #&lt;Book:0x007fc3c00f9160 @author="Metz, Sandi", @id=1, @isbn="0115501237044", @title="Practical Object-Oriented Design in Ruby"&gt;</span>
+</code></pre></div></div>
+
+<p>When we want to update our book, we call <code class="highlighter-rouge">book.update()</code>, with the parameters we want to update. In this case, we update the title:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">book</span><span class="p">.</span><span class="nf">update</span><span class="p">(</span><span class="ss">title: </span><span class="s2">"POODR"</span><span class="p">)</span>
+<span class="c1">#=&gt; #&lt;Book:0x007fc34ee1160 @author="Metz, Sandi", @id=1, @isbn="0115501237044", @title="POODR"&gt;</span>
+</code></pre></div></div>
+
+<p>This is the expected behavior.</p>
+
+<p>Next, to visualize what an attack looks like, lets remind ourselves of the method signature and SQL query:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="ss">title: </span><span class="kp">nil</span><span class="p">,</span> <span class="ss">author: </span><span class="kp">nil</span><span class="p">,</span> <span class="ss">isbn: </span><span class="kp">nil</span><span class="p">)</span>
+    <span class="o">...</span>
+	<span class="s2">"UPDATE books  
+	SET title = '</span><span class="si">#{</span><span class="n">title</span><span class="si">}</span><span class="s2">', author = '</span><span class="si">#{</span><span class="n">author</span><span class="si">}</span><span class="s2">', isbn = '</span><span class="si">#{</span><span class="n">isbn</span><span class="si">}</span><span class="s2">'
+	WHERE id = </span><span class="si">#{</span><span class="vi">@id</span><span class="si">}</span><span class="s2">;"</span>
+	<span class="o">...</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<p>Let’s consider what would happen to our query if we called the <code class="highlighter-rouge">.update()</code> method like this:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">book</span><span class="p">.</span><span class="nf">update</span><span class="p">(</span><span class="ss">title: </span><span class="s2">"PWNED' WHERE id = 2/*"</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>If we called our method like that, our query would look like this:</p>
+
+<div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">UPDATE</span> <span class="n">books</span> 
+<span class="k">SET</span> <span class="n">title</span> <span class="o">=</span> <span class="s1">'PWNED'</span> <span class="k">WHERE</span> <span class="n">id</span> <span class="o">=</span> <span class="mi">2</span><span class="cm">/*, author = 'Metz, Sandi', isbn = '0115501237044' 
+WHERE id = 1;
+</span></code></pre></div></div>
+
+<p>Notice that SQLite will consider everything after <code class="highlighter-rouge">/*</code> to be a comment, so if we strip that away, we’re left with:</p>
+
+<div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">UPDATE</span> <span class="n">books</span>
+<span class="k">SET</span> <span class="n">title</span> <span class="o">=</span> <span class="s1">'PWNED'</span>
+<span class="k">WHERE</span> <span class="n">id</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+</code></pre></div></div>
+
+<p>What happened? Even though we were working with an Active Record object for a book row where <code class="highlighter-rouge">id = 1</code>, our interpolated string allowed us to effectively <em>change</em> the original query in order to update a different row in our database, <code class="highlighter-rouge">WHERE id = 2</code> in our case.</p>
+
+<p>We can see the effect of our SQL injection by querying for the book with and <code class="highlighter-rouge">id = 2</code></p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="no">Book</span><span class="p">.</span><span class="nf">find</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="c1">#=&gt; #&lt;Book:0x007fc3c20dd120 @author="Martin, Robert C.", @id=2, @isbn="0187123641198", @title="PWNED"&gt;</span>
+</code></pre></div></div>
+
+<p>This is not the intended use of our client code, but once it’s out there, we can’t protect against this kind of attack. Imagine if we were updating a user password instead of a book title!</p>
+
+<h3 id="the-fix">The Fix</h3>
+
+<p>The fix is to use <em>parameterized queries</em>.</p>
+
+<blockquote>
+  <p>The use of prepared statements with variable binding (aka parameterized queries) is how all developers should first be taught how to write database queries. They are simple to write, and easier to understand than dynamic queries. Parameterized queries force the developer to first define all the SQL code, and then pass in each parameter to the query later. This coding style allows the database to distinguish between code and data, regardless of what user input is supplied.</p>
+
+  <p><a href="https://www.owasp.org/index.php/SQL_Injection_Prevention_Cheat_Sheet#Defense_Option_1:_Prepared_Statements_.28Parameterized_Queries.29">OWASP</a></p>
+</blockquote>
+
+<p>The <code class="highlighter-rouge">SQLite3</code> gem makes using these types of statements, really easy. We replace the interpolated code with a <code class="highlighter-rouge">?</code>, and provide a list of arguments that will be used to fill in those blanks, later:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="ss">title: </span><span class="kp">nil</span><span class="p">,</span> <span class="ss">author: </span><span class="kp">nil</span><span class="p">,</span> <span class="ss">isbn: </span><span class="kp">nil</span><span class="p">)</span>
+  <span class="o">...</span>
+  <span class="no">SQLite3</span><span class="o">::</span><span class="no">Database</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="s2">"books.db"</span><span class="p">).</span><span class="nf">execute</span><span class="p">(</span>
+    <span class="s2">"UPDATE books SET title = ?, author = ?, isbn = ? WHERE id = ?"</span><span class="p">,</span>
+      <span class="p">[</span><span class="n">title</span><span class="p">,</span> <span class="n">author</span><span class="p">,</span> <span class="n">isbn</span><span class="p">,</span> <span class="vi">@id</span><span class="p">]</span>
+  <span class="p">)</span>
+  <span class="o">...</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<p>In our case, it’s as simple as passing in a second argument to <code class="highlighter-rouge">#execute()</code>. Let’s looks at that function definition:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="n">sql</span><span class="p">,</span> <span class="n">bind_vars</span> <span class="o">=</span> <span class="p">[],</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">block</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>You can read more about <a href="https://sql.org/c3ref/bind_blob.html">Binding Variables in SQLite</a>, but essentially, the abstraction in the <code class="highlighter-rouge">SQLite3</code> gem does exactly what you imagine: replace each, <code class="highlighter-rouge">?</code>, with the corresponding value in the  <code class="highlighter-rouge">bind_var</code> array, based on order.</p>
+
+<p>If we try to do the same SQL injection now, we end up with this:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">book</span><span class="p">.</span><span class="nf">update</span><span class="p">(</span><span class="ss">title: </span><span class="s2">"PWNED' WHERE id = 2/*"</span><span class="p">)</span>
+<span class="c1">#&lt;Book:0x007fc3c22ff638 @author="Metz, Sandi", @id=1, @isbn="0115501237044", @title="PWNED' WHERE id = 2/*"&gt;</span>
+</code></pre></div></div>
+
+<p>Instead of effecting any other rows in our database, the prepared statement escaped any characters which could otherwise be interpreted as SQL syntax.</p>
+
+<p><a href="/labs/peel/Day_2">← Day 2</a>
+<a href="/labs/peel/Day_4">Day 4 →</a></p>
+
+      </div>
+      <div class="row footer">
+  <div class="col-3-sm">
+    <a  href="/">home.</a>
+  </div>
+  <div class="col-3-sm">
+    <a target="_blank" rel="noopener noreferrer" href="https://www.github.com/thomascountz">github.</a>
+  </div>
+  <div class="col-3-sm">
+    <a target="_blank" rel="noopener noreferrer" href="https://www.twitter.com/thomascountz">twitter.</a>
+  </div>
+</div>
+
+    </div>
+  </body>
+</html>

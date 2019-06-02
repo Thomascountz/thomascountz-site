@@ -1,0 +1,232 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>Thomas Countz</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.svg">
+    <link rel="stylesheet" href="/assets/css/simple-grid.css">
+    <link rel="stylesheet" href="/assets/css/styles.css">
+    <link rel="stylesheet" href="/assets/css/highlight.css">
+  </head>
+  <body>
+    <div class="container">
+      <div class="row header">
+  <div class="col-12">
+    <a href="/"><img src="/assets/images/c-lab-logo.svg" width="200"/></a>
+  </div>
+</div>
+
+      <div class="row">
+        <p><a href="/labs/peel">← Back to Lab</a></p>
+
+<h1 id="day-4">Day 4</h1>
+
+<h2 id="adding-functionality-to-client-classes">Adding Functionality to Client Classes</h2>
+
+<p>The first step in tackling this problem is to add functionality to a model class. If we have a class <code class="highlighter-rouge">Book</code>, we want to add a class method <code class="highlighter-rouge">Book.find</code> , and some instance methods <code class="highlighter-rouge">book#title</code>, <code class="highlighter-rouge">book#author</code>, and <code class="highlighter-rouge">book#isbn</code>, without needed to explicitly write them, like we did in the original spike.</p>
+
+<h4 id="a-note-on-mix-ins--inheritance">A Note on Mix-Ins &amp; Inheritance</h4>
+
+<p>When you want to create a model with <code class="highlighter-rouge">ActiveRecord</code>, you have to inherit from the <code class="highlighter-rouge">Base</code> module:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">class</span> <span class="nc">Book</span> <span class="o">&lt;</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span><span class="p">;</span> <span class="k">end</span>
+</code></pre></div></div>
+
+<p>There are endless debates about composition v. inheritance, and, from my perspective, they all mostly lean towards composition, but what about using mix-ins versus using string inheritance?</p>
+
+<p>In Ruby, inheriting and including a module <em>both</em> add a new entity in the method look-up path:</p>
+
+<p><strong>Inheritance</strong></p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">class</span> <span class="nc">Foo</span><span class="p">;</span> <span class="k">end</span>
+<span class="k">class</span> <span class="nc">Bar</span> <span class="o">&lt;</span> <span class="no">Foo</span><span class="p">;</span> <span class="k">end</span>
+<span class="no">Bar</span><span class="p">.</span><span class="nf">ancestors</span>
+<span class="c1">#=&gt; [Bar, Foo, Object, Kernel, BasicObject]</span>
+</code></pre></div></div>
+
+<p><strong>Module Inclusion</strong></p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">module</span> <span class="nn">Foo</span><span class="p">;</span> <span class="k">end</span>
+<span class="k">class</span> <span class="nc">Bar</span>
+ <span class="kp">include</span> <span class="no">Foo</span>
+<span class="k">end</span>
+<span class="no">Bar</span><span class="p">.</span><span class="nf">ancestors</span>
+<span class="c1">#=&gt; [Bar, Foo, Object, Kernel, BasicObject]</span>
+</code></pre></div></div>
+
+<p>Which is what we want. When we think of the task at hand, we want to insert an object that defines <code class="highlighter-rouge">.find()</code> for a object we want to make an Active Record object.</p>
+
+<p>For our intents and purposes, either solution will do, and perhaps the same could be said for the folks working on <code class="highlighter-rouge">ActiveRecord</code>. There are a few considerations to be made when deciding however; here’s a quote from <a href="https://www.manning.com/books/the-well-grounded-rubyist-second-edition">Well Grounded Rubyist, 2nd Ed.</a></p>
+
+<blockquote>
+  <ul>
+    <li><em>Modules don’t have instances.</em> It follows that entities or things are generally best modeled in classes, and characteristics or properties of entities or things are best encapsulated in modules… class names tend to be nouns, whereas module names are often adjectives…</li>
+    <li><em>A class can have only one superclass, but it can mix in as many modules as it wants.</em> If you’re using inheritance, give priority to creating a sensible superclass/subclass relationship. Don’t use up a class’s one and only superclass relationship to endow the class with what might turn out to be just one of several sets of characteristics.</li>
+  </ul>
+</blockquote>
+
+<p>With that said, I want to think of making client classes “model-able,” rather than making client classes “a model.” This pulls us towards using a module and including it, rather than using inheritance, <em>a la</em> <code class="highlighter-rouge">ActiveRecord</code>.</p>
+
+<h4 id="a-note-about-include--extend">A Note about Include &amp; Extend</h4>
+
+<p>There are a few different ways to add behavior from a module into our classes. For our purposes, we’ll focus on <code class="highlighter-rouge">include</code> and <code class="highlighter-rouge">extend</code>.</p>
+
+<p>As mentioned above, <code class="highlighter-rouge">include</code> will add an entity in the method look-up path. So for our <code class="highlighter-rouge">book#title</code>, <code class="highlighter-rouge">book#author</code>, and <code class="highlighter-rouge">book#isbn</code>, this sounds like the kind of functionality we want. The users of our ORM shouldn’t have to define these methods, they should be provided to them. If the method is missing from there class, we can define them in our module and place it next in line.</p>
+
+<p><code class="highlighter-rouge">extend</code> on the other hand, defines a singleton class and places the method definitions from our module there. This is the same as if the users of our ORM defined class methods in their class. This is a good candidate for <code class="highlighter-rouge">Book.find</code>, which, again, we’ll define and place in singleton class of the client’s class.</p>
+
+<blockquote>
+  <p>Often, you will want to use a module to import instance methods on a class, but at the same time to define class methods. Normally, you would have to use two different modules, one with <code class="highlighter-rouge">include</code> to import instance methods, and another one with <code class="highlighter-rouge">extend</code> to define class methods.</p>
+
+  <p>— <a href="https://medium.com/@leo_hetsch/ruby-modules-include-vs-prepend-vs-extend-f09837a5b073">Léonard Hetsch</a></p>
+</blockquote>
+
+<p>The idiomatic way of doing this like so:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">module</span> <span class="nn">Foo</span>
+  <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">included</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+    <span class="n">base</span><span class="p">.</span><span class="nf">extend</span><span class="p">(</span><span class="no">ClassMethods</span><span class="p">)</span>
+  <span class="k">end</span>
+    
+  <span class="k">module</span> <span class="nn">ClassMethods</span>
+    <span class="k">def</span> <span class="nf">bar</span>
+      <span class="s2">"It works!"</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+
+<span class="k">class</span> <span class="nc">MyClass</span>
+  <span class="kp">include</span> <span class="no">Foo</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<p>The hook <code class="highlighter-rouge">.included()</code> gets called whenever a module is included into a class, and it’s passed the class that included it. The above code adds the method <code class="highlighter-rouge">.bar</code> to class <code class="highlighter-rouge">MyClass</code>’s singleton class, <code class="highlighter-rouge">#MyClass</code>:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="no">MyClass</span><span class="p">.</span><span class="nf">bar</span>
+<span class="c1">#=&gt; "It works!"</span>
+</code></pre></div></div>
+
+<h2 id="bits--bobs">Bits &amp; Bobs</h2>
+
+<p>Now we have all the bits &amp; bobs to get started. We know we want to define <code class="highlighter-rouge">Book.find</code>, <code class="highlighter-rouge">book#title</code>, <code class="highlighter-rouge">book#author</code>, and <code class="highlighter-rouge">book#isbn</code>, but we’ll also want to define a constructor <code class="highlighter-rouge">Book.new</code>, which Ruby has us do by defining the instance method <code class="highlighter-rouge">book#initialize</code>.</p>
+
+<p>The workflow will go like this: we’ll define a method in our client class, <em>e.g</em>. in <code class="highlighter-rouge">Book</code>, and then abstract those method out into modules.</p>
+
+<h2 id="onward-to-the-database">Onward to the Database</h2>
+
+<p>First, well want a way to read our database columns in order to know what accessor methods we need to build. In SQLite, we can use <code class="highlighter-rouge">PRAGMA</code></p>
+
+<blockquote>
+  <p>The PRAGMA statement is an SQL extension specific to SQLite and used to modify the operation of the SQLite library or to query the SQLite library for internal (non-table) data.</p>
+</blockquote>
+
+<p>This works with the <code class="highlighter-rouge">sql3</code> gem like this:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="no">SQLite3</span><span class="o">::</span><span class="no">Database</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="s2">"books_app"</span><span class="p">)</span>
+  <span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="s2">"PRAGMA table_info(books)"</span><span class="p">)</span>
+<span class="c1">#=&gt; [[0, "id", "INTEGER", 0, nil, 1], [1, "title", "VARCHAR(255)", 0, nil, 0], [2, "author", "VARCHAR(50)", 0, nil, 0], [3, "isbn", "VARCHAR(13)", 0, nil, 0]]</span>
+</code></pre></div></div>
+
+<p>Each array has the following values:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">[</span><span class="s2">"cid"</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">,</span> <span class="s2">"type"</span><span class="p">,</span> <span class="s2">"notnull"</span><span class="p">,</span> <span class="s2">"dflt_value"</span><span class="p">,</span> <span class="s2">"pk"</span><span class="p">]</span>
+</code></pre></div></div>
+
+<p>Because we want the “name” of each column, we can extract them like this:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="no">SQLite3</span><span class="o">::</span><span class="no">Database</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="s2">"books_app"</span><span class="p">)</span>
+  <span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="s2">"PRAGMA table_info(books)"</span><span class="p">)</span>
+  <span class="p">.</span><span class="nf">map</span> <span class="p">{</span> <span class="o">|</span><span class="n">column</span><span class="o">|</span> <span class="n">column</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="nf">to_sym</span> <span class="p">}</span>
+<span class="c1">#=&gt; [:id, :title, :author, :isbn]</span>
+</code></pre></div></div>
+
+<p>Notice the call to <code class="highlighter-rouge">.to_sym</code> which turns each of the strings into Ruby symbols. This makes them a bit easy to work with later on.</p>
+
+<p>Notice in our use of the <code class="highlighter-rouge">sql3</code> gem, there are two pieces of information that tightly couple this to our implementation: the database name, <code class="highlighter-rouge">books_app</code>, and the table name <code class="highlighter-rouge">books</code>.</p>
+
+<p><strong>Note</strong>: we’re going to ignore the hardcoded database name, for now, and only address the table name.</p>
+
+<p>Our solution is going to be to define an instance variable with the table name, and use that to build our query.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">class</span> <span class="nc">Book</span>
+  <span class="vi">@table_name</span> <span class="o">=</span> <span class="s2">"books"</span>
+  <span class="k">class</span> <span class="o">&lt;&lt;</span> <span class="nb">self</span>
+    <span class="k">def</span> <span class="nf">columns</span>
+      <span class="no">SQLite3</span><span class="o">::</span><span class="no">Database</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="s2">"books_app"</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="s2">"PRAGMA table_info(</span><span class="si">#{</span><span class="vi">@table_name</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">map</span> <span class="p">{</span> <span class="o">|</span><span class="n">column</span><span class="o">|</span> <span class="n">column</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="nf">to_sym</span> <span class="p">}</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<p><code class="highlighter-rouge">Book.columns</code> is a class method, because the columns will be the same for all instances of class <code class="highlighter-rouge">Book</code>. We could pass the table name into <code class="highlighter-rouge">.columns</code>, but likewise, the table name will be the same for all instances. However, we want to extract this into a module, and the table name will vary depending on the class that <code class="highlighter-rouge">include</code>s it. There are at least two ways to solve this problem.</p>
+
+<p><code class="highlighter-rouge">ActiveRecord</code> solves this by implicitly linking classes and tables based on the name of the class, <em>i.e.</em>, a class of <code class="highlighter-rouge">Book</code> would be linked to a table <code class="highlighter-rouge">books</code>, and a class <code class="highlighter-rouge">User</code> would be linked to a table, <code class="highlighter-rouge">users</code>. Similar to the Broken Record project, I believe there’s value in <em>explicitness</em>, so instead of inferring a table name, we’ll pass it into our module and store it there as an instance variable.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">module</span> <span class="nn">Modelable</span>
+  <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">included</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+    <span class="n">base</span><span class="p">.</span><span class="nf">extend</span><span class="p">(</span><span class="no">ClassMethods</span><span class="p">)</span>
+  <span class="k">end</span>
+    
+  <span class="k">module</span> <span class="nn">ClassMethods</span>
+    <span class="k">def</span> <span class="nf">link_to</span><span class="p">(</span><span class="n">table_name</span><span class="p">)</span>
+      <span class="vi">@table_name</span> <span class="o">=</span> <span class="n">table_name</span><span class="p">.</span><span class="nf">to_s</span>
+    <span class="k">end</span>
+    <span class="o">...</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<p>This allows us to do the following from our <code class="highlighter-rouge">Book</code> class:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">class</span> <span class="nc">Book</span>
+  <span class="kp">include</span> <span class="no">Modelable</span>
+  <span class="n">link_to</span><span class="p">(</span><span class="ss">:books</span><span class="p">)</span>
+  <span class="o">...</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<p>There is still an instance variable called <code class="highlighter-rouge">@table_name</code>, but we’ve assigned it using a method. That instance variable is available both to our <code class="highlighter-rouge">Book</code> class, as well as in the <code class="highlighter-rouge">Modelable</code> module, so we can now move the <code class="highlighter-rouge">#columns</code> class method into our module.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">module</span> <span class="nn">Modelable</span>
+  <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">included</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+    <span class="n">base</span><span class="p">.</span><span class="nf">extend</span><span class="p">(</span><span class="no">ClassMethods</span><span class="p">)</span>
+  <span class="k">end</span>
+    
+  <span class="k">module</span> <span class="nn">ClassMethods</span>
+    <span class="k">def</span> <span class="nf">link_to</span><span class="p">(</span><span class="n">table_name</span><span class="p">)</span>
+      <span class="vi">@table_name</span> <span class="o">=</span> <span class="n">table_name</span><span class="p">.</span><span class="nf">to_s</span>
+    <span class="k">end</span>
+      
+    <span class="k">def</span> <span class="nf">columns</span>
+      <span class="no">SQLite3</span><span class="o">::</span><span class="no">Database</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="s2">"books_app"</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="s2">"PRAGMA table_info(</span><span class="si">#{</span><span class="vi">@table_name</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">map</span> <span class="p">{</span> <span class="o">|</span><span class="n">column</span><span class="o">|</span> <span class="n">column</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="nf">to_sym</span> <span class="p">}</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<p><strong>Note</strong>: Here were see string interpolation in an SQL query again, and we discussed how that produces a security vulnerability. Unfortunately, SQLite doesn’t allow you to bind variables in PRAGMA queries. We could find the column names another way, using a query that <em>does</em> allow us to use bound parameters, or we could even sanitize <code class="highlighter-rouge">@table_name</code> ourselves. For now, we’ll make a note of it and place it in the icebox where stories go to die.</p>
+
+<p><a href="/labs/peel/Day_3">← Day 3</a>
+<a href="/labs/peel/Day_5">Day 5 →</a></p>
+
+      </div>
+      <div class="row footer">
+  <div class="col-3-sm">
+    <a  href="/">home.</a>
+  </div>
+  <div class="col-3-sm">
+    <a target="_blank" rel="noopener noreferrer" href="https://www.github.com/thomascountz">github.</a>
+  </div>
+  <div class="col-3-sm">
+    <a target="_blank" rel="noopener noreferrer" href="https://www.twitter.com/thomascountz">twitter.</a>
+  </div>
+</div>
+
+    </div>
+  </body>
+</html>

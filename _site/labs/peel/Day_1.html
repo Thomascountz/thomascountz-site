@@ -1,0 +1,233 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>Thomas Countz</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.svg">
+    <link rel="stylesheet" href="/assets/css/simple-grid.css">
+    <link rel="stylesheet" href="/assets/css/styles.css">
+    <link rel="stylesheet" href="/assets/css/highlight.css">
+  </head>
+  <body>
+    <div class="container">
+      <div class="row header">
+  <div class="col-12">
+    <a href="/"><img src="/assets/images/c-lab-logo.svg" width="200"/></a>
+  </div>
+</div>
+
+      <div class="row">
+        <p><a href="/labs/peel">← Back to Lab</a></p>
+
+<h1 id="day-1">Day 1</h1>
+
+<h2 id="where-to-begin">Where to Begin</h2>
+
+<p>First, let’s quickly revisit our problem domain:</p>
+
+<blockquote>
+  <p>We want to build a simple CRUD app to manage a global list of books in our library. We should be able to record a book’s title, author, and ISBN number.</p>
+</blockquote>
+
+<p>Now, let’s start with some initial, sometimes arbitrary, design decisions so that I can zero-in on the meat of the problem. First, like Gregory Brown’s <a href="https://practicingruby.com/articles/implementing-the-active-record-pattern-1">Broken Record project</a>, I think I’ll begin with an SQLite database. SQLite is the default Ruby on Rails development database, and its light footprint means I should be able to get up and running quickly. We’ll utilize the <code class="highlighter-rouge">SQLite3</code> gem, which you can read up on <a href="https://github.com/sparklemotion/sql3-ruby/">here</a>.</p>
+
+<p>I’m also going to assume that the database table already exists. Later in the project, I hope to take a look at managing schema migrations, but for now, the creation and alteration of database tables/columns will happen outside of the active record object. This is a good example of how the <code class="highlighter-rouge">ActiveRecord</code> implementation from Ruby on Rails goes above and beyond the basic definition of the Active Record pattern.</p>
+
+<p>The database is build like this:</p>
+
+<div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">IF</span> <span class="k">NOT</span> <span class="k">EXISTS</span> <span class="n">books</span> <span class="p">(</span>
+  <span class="n">id</span> 	 <span class="n">INTEGER</span> <span class="k">PRIMARY</span> <span class="k">KEY</span><span class="p">,</span>
+  <span class="n">title</span>  <span class="n">VARCHAR</span><span class="p">(</span><span class="mi">255</span><span class="p">),</span>
+  <span class="n">author</span> <span class="n">VARCHAR</span><span class="p">(</span><span class="mi">50</span><span class="p">),</span>
+  <span class="n">isbn</span>   <span class="n">VARCHAR</span><span class="p">(</span><span class="mi">13</span><span class="p">)</span>
+<span class="p">);</span> 
+</code></pre></div></div>
+
+<p>The line <code class="highlighter-rouge">CREATE TABLE IF NOT EXISTS</code> does exactly what it sounds like, it will either create the table based on the schema provided, or, if a <code class="highlighter-rouge">books</code> table exits, it will do nothing.</p>
+
+<p>This is important to note because a change to this SQL statement will not <em>update</em> the <code class="highlighter-rouge">books</code> table. For example, if we wanted to add another column <code class="highlighter-rouge">pages</code>, to record the number of pages in our books,  we couldn’t simply add another line to our statement and run it again.</p>
+
+<div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cm">/* This new statement will not update an existing table */</span>
+<span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">IF</span> <span class="k">NOT</span> <span class="k">EXISTS</span> <span class="n">books</span> <span class="p">(</span>
+  <span class="n">id</span> 	 <span class="n">INTEGER</span> <span class="k">PRIMARY</span> <span class="k">KEY</span><span class="p">,</span>
+  <span class="n">title</span>  <span class="n">VARCHAR</span><span class="p">(</span><span class="mi">255</span><span class="p">),</span>
+  <span class="n">author</span> <span class="n">VARCHAR</span><span class="p">(</span><span class="mi">50</span><span class="p">),</span>
+  <span class="n">isbn</span>   <span class="n">VARCHAR</span><span class="p">(</span><span class="mi">13</span><span class="p">),</span>
+  <span class="n">pages</span>  <span class="n">INTEGER</span>
+<span class="p">);</span>
+</code></pre></div></div>
+
+<p>The next few lines create the columns of our table. <code class="highlighter-rouge">id</code>, <code class="highlighter-rouge">title</code>, <code class="highlighter-rouge">author</code>, and <code class="highlighter-rouge">isbn</code>, each hold the the data belonging to each book. The interesting one to note is <code class="highlighter-rouge">id</code>, which is declared as <code class="highlighter-rouge">INTEGER PRIMARY KEY</code></p>
+
+<blockquote>
+  <p>If you declare a column of a table to be <a href="https://www.sql.org/lang_createtable.html#rowid">INTEGER PRIMARY KEY</a>, then whenever you insert a <code class="highlighter-rouge">NULL</code> into that column of the table, the <code class="highlighter-rouge">NULL</code> is automatically converted into an integer which is one greater than the largest value of that column over all other rows in the table, or <code class="highlighter-rouge">1</code> if the table is empty.</p>
+
+  <p>-<a href="https://www.sql.org/faq.html#q1">SQLite FAQ</a></p>
+</blockquote>
+
+<h2 id="sqlite3-gem">SQLite3 Gem</h2>
+
+<p>In order to build an Active Record object, we need a database, and in order to use a database, we need an adapter. Fortunately for us, it is not the responsibility of an Active Record object to facility the infrastructure of communication between itself and the database. For our purposes, we’ll begin with the <a href="https://github.com/sparklemotion/sql3-ruby">SQLite3 gem</a> that abstracts the database away from our object.</p>
+
+<p>Later we’ll see how we can wrap this gem in an object we own, so that we can move towards becoming database agnostic.</p>
+
+<h2 id="spiking-an-active-record-object">Spiking an Active Record Object</h2>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">require</span> <span class="s1">'sql3'</span>
+
+<span class="n">db</span> <span class="o">=</span> <span class="no">SQLite3</span><span class="o">::</span><span class="no">Database</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="s2">"books.db"</span><span class="p">).</span><span class="nf">execute</span> <span class="o">&lt;&lt;-</span><span class="no">SQL</span><span class="sh">
+  CREATE TABLE IF NOT EXISTS books (
+    id 	   INTEGER PRIMARY KEY,
+    title  VARCHAR(255),
+    author VARCHAR(50),
+    isbn   VARCHAR(13)
+  ); 
+</span><span class="no">SQL</span>
+
+<span class="k">class</span> <span class="nc">Book</span>
+  <span class="k">class</span> <span class="o">&lt;&lt;</span> <span class="nb">self</span>
+    <span class="k">def</span> <span class="nf">create</span><span class="p">(</span><span class="n">title</span><span class="p">:,</span> <span class="n">author</span><span class="p">:,</span> <span class="n">isbn</span><span class="p">:)</span>
+      <span class="n">db</span> <span class="o">=</span> <span class="no">SQLite3</span><span class="o">::</span><span class="no">Database</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="s2">"books.db"</span><span class="p">)</span>
+      <span class="n">db</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+        <span class="s2">"INSERT INTO books (title, author, isbn) VALUES (?, ?, ?)"</span><span class="p">,</span>
+        <span class="p">[</span><span class="n">title</span><span class="p">,</span> <span class="n">author</span><span class="p">,</span> <span class="n">isbn</span><span class="p">]</span>
+      <span class="p">)</span>
+      <span class="nb">id</span> <span class="o">=</span> <span class="n">db</span><span class="p">.</span><span class="nf">last_insert_row_id</span>
+      <span class="no">Book</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="ss">id: </span><span class="nb">id</span><span class="p">,</span> <span class="ss">title: </span><span class="n">title</span><span class="p">,</span> <span class="ss">author: </span><span class="n">author</span><span class="p">,</span> <span class="ss">isbn: </span><span class="n">isbn</span><span class="p">)</span>
+    <span class="k">end</span>
+    
+    <span class="k">def</span> <span class="nf">find</span><span class="p">(</span><span class="nb">id</span><span class="p">)</span>
+      <span class="n">result</span> <span class="o">=</span> <span class="no">SQLite3</span><span class="o">::</span><span class="no">Database</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="s2">"books.db"</span><span class="p">).</span><span class="nf">execute</span><span class="p">(</span>
+        <span class="s2">"SELECT * FROM books WHERE id = ? LIMIT 1"</span><span class="p">,</span> <span class="nb">id</span>
+      <span class="p">)</span>
+      <span class="n">result</span><span class="p">.</span><span class="nf">empty?</span> <span class="p">?</span> <span class="n">result</span> <span class="p">:</span> <span class="no">Book</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="ss">id: </span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> 
+                                        <span class="ss">title: </span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> 
+                                        <span class="ss">author: </span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">2</span><span class="p">],</span> 
+                                        <span class="ss">isbn: </span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">3</span><span class="p">]</span>
+                                        <span class="p">)</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+
+  <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="ss">id: </span><span class="kp">nil</span><span class="p">,</span> <span class="n">title</span><span class="p">:,</span> <span class="n">author</span><span class="p">:,</span> <span class="n">isbn</span><span class="p">:)</span>
+    <span class="vi">@id</span> <span class="o">=</span> <span class="nb">id</span>
+    <span class="vi">@title</span> <span class="o">=</span> <span class="n">title</span>
+    <span class="vi">@author</span> <span class="o">=</span> <span class="n">author</span>
+    <span class="vi">@isbn</span> <span class="o">=</span> <span class="n">isbn</span>
+  <span class="k">end</span>
+
+  <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="ss">title: </span><span class="kp">nil</span><span class="p">,</span> <span class="ss">author: </span><span class="kp">nil</span><span class="p">,</span> <span class="ss">isbn: </span><span class="kp">nil</span><span class="p">)</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">title</span> <span class="o">||</span> <span class="vi">@title</span>
+    <span class="n">author</span> <span class="o">=</span> <span class="n">author</span> <span class="o">||</span> <span class="vi">@author</span>
+    <span class="n">isbn</span> <span class="o">=</span> <span class="n">isbn</span> <span class="o">||</span> <span class="vi">@isbn</span>
+
+    <span class="no">SQLite3</span><span class="o">::</span><span class="no">Database</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="s2">"books.db"</span><span class="p">).</span><span class="nf">execute</span> <span class="o">&lt;&lt;-</span><span class="no">SQL</span><span class="sh">
+      UPDATE books  
+      SET title = '</span><span class="si">#{</span><span class="n">title</span><span class="si">}</span><span class="sh">', author = '</span><span class="si">#{</span><span class="n">author</span><span class="si">}</span><span class="sh">', isbn = '</span><span class="si">#{</span><span class="n">isbn</span><span class="si">}</span><span class="sh">'
+      WHERE id = </span><span class="si">#{</span><span class="vi">@id</span><span class="si">}</span><span class="sh">;
+</span><span class="no">SQL</span>
+    <span class="no">Book</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="ss">id: </span><span class="vi">@id</span><span class="p">,</span> <span class="ss">title: </span><span class="n">title</span><span class="p">,</span> <span class="ss">author: </span><span class="n">author</span><span class="p">,</span> <span class="ss">isbn: </span><span class="n">isbn</span><span class="p">)</span>
+  <span class="k">end</span>
+
+  <span class="k">def</span> <span class="nf">destroy</span>
+    <span class="no">SQLite3</span><span class="o">::</span><span class="no">Database</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="s2">"books.db"</span><span class="p">).</span><span class="nf">execute</span><span class="p">(</span><span class="s2">"DELETE FROM books WHERE id = ?"</span><span class="p">,</span> <span class="vi">@id</span><span class="p">)</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<h2 id="example-usage">Example Usage</h2>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="no">Book</span><span class="p">.</span><span class="nf">create</span><span class="p">(</span><span class="ss">title: </span><span class="s2">"Practical Object Oriented Design in Ruby"</span><span class="p">,</span> <span class="ss">author: </span><span class="s2">"Metz, Sandi"</span><span class="p">,</span> <span class="ss">isbn: </span><span class="s2">"9780321721334"</span><span class="p">)</span>
+<span class="c1"># =&gt; #&lt;Book:0x007fa904193e80 @author="Metz, Sandi", @id=1, @isbn="9780321721334", @title="Practical Object Oriented Design in Ruby"&gt;</span>
+
+<span class="no">Book</span><span class="p">.</span><span class="nf">create</span><span class="p">(</span><span class="ss">title: </span><span class="s2">"Patterns of Enterprise Apllication Architecture"</span><span class="p">,</span> <span class="ss">author: </span><span class="s2">"Fowler, Martin"</span><span class="p">,</span> <span class="ss">isbn: </span><span class="s2">"9780321127426"</span><span class="p">)</span>
+<span class="c1"># =&gt; #&lt;Book:0x007fa9039290b0 @author="Fowler, Martin", @id=2, @isbn="9780321127426", @title="Patterns of Enterprise Apllication Architecture"&gt;</span>
+
+<span class="n">book</span> <span class="o">=</span> <span class="no">Book</span><span class="p">.</span><span class="nf">find</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="c1"># =&gt; #&lt;Book:0x007fa903965e98 @author="Metz, Sandi", @id=1, @isbn="9780321721334", @title="Practical Object Oriented Design in Ruby"&gt;</span>
+
+<span class="n">book</span><span class="p">.</span><span class="nf">title</span>
+<span class="c1"># =&gt; "Practical Object Oriented Design in Ruby"</span>
+
+<span class="n">new_book</span> <span class="o">=</span> <span class="n">book</span><span class="p">.</span><span class="nf">update</span><span class="p">(</span><span class="ss">title: </span><span class="s2">"POODR"</span><span class="p">)</span>
+<span class="c1"># =&gt; #&lt;Book:0x007fa90291f638 @author="Metz, Sandi", @id=1, @isbn="9780321721334", @title="POODR"&gt;</span>
+
+<span class="no">Book</span><span class="p">.</span><span class="nf">find</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="c1"># =&gt; &lt;Book:0x007fa9028a72c8 @author="Fowler, Martin", @id=2, @isbn="9780321127426", @title="Patterns of Enterprise Apllication Architecture"&gt;</span>
+
+<span class="no">Book</span><span class="p">.</span><span class="nf">find</span><span class="p">(</span><span class="mi">2</span><span class="p">).</span><span class="nf">destroy</span>
+<span class="c1"># =&gt; []</span>
+
+<span class="no">Book</span><span class="p">.</span><span class="nf">find</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="c1"># =&gt; []</span>
+</code></pre></div></div>
+
+<p>This is an Active Record object. It’s not pretty, but it illustrates the core features of the pattern.</p>
+
+<p>From the client’s perspective, they’re only dealing with a POOR, <em>plain old Ruby object</em>. Without debating the pros and cons of obfuscating database interactions, I think our <code class="highlighter-rouge">Book</code> class does a pretty good job!</p>
+
+<p>Here is a list that Martin Fowler describes as typical Active Record object behaviors and a mapping to what our object does:</p>
+
+<ol>
+  <li>Construct an instance of the Active Record from a SQL result set row <em>(e.g. <code class="highlighter-rouge">Book.find()</code>)</em></li>
+  <li>Static finder methods to wrap commonly used SQL queries and return Active Record objects <em>(e.g. <code class="highlighter-rouge">Book.find()</code> &amp; <code class="highlighter-rouge">Book.create()</code>)</em></li>
+  <li>Update the database and insert into it the data in the Active Record <em>(e.g. <code class="highlighter-rouge">Book#update()</code>)</em></li>
+  <li>Get and set the fields <em>(e.g. <code class="highlighter-rouge">Book#id()</code>, <code class="highlighter-rouge">Book#title()</code>, etc)</em></li>
+</ol>
+
+<p>Two other behaviors are:</p>
+
+<ol>
+  <li>Implement some pieces of business logic</li>
+  <li>Construct a new instance for later insertion into the table</li>
+</ol>
+
+<p>Which aren’t currently implemented, however, we could follow the pattern above and implement these features pretty quickly.</p>
+
+<h2 id="what-i-learned">What I Learned</h2>
+
+<p>The spiked implementation highlights a few things for me.</p>
+
+<ol>
+  <li>
+    <p>The <code class="highlighter-rouge">ActiveRecord</code> implementation provided by Ruby on Rails does more than just implement the Active Record pattern.</p>
+
+    <p><code class="highlighter-rouge">ActiveRecord</code> isn’t just an <em>implementation</em> of a pattern, it’s an <em>abstraction</em> of the pattern. <code class="highlighter-rouge">ActiveRecord</code> allows its clients to <em>create</em> Active Record objects, rather than being one. It uses object-orientation to produce interfaces which allow you or I to more easily create a <code class="highlighter-rouge">Book</code> class that interacts with a database. Using the Active Record pattern to build an ORM is not the same as using Active Record pattern to build an object.</p>
+  </li>
+  <li>
+    <p>Testing is tricky.</p>
+
+    <p>The clearest way of testing the spiked version of <code class="highlighter-rouge">Book</code> is to write end-to-end tests that actually touch the database. This isn’t ideal, so it’s worth taking a step back and considering #1, above. The goal is to build an ORM abstraction that other classes can use, not just build an Active Record class, so there’s some pieces missing in the current iteration.</p>
+  </li>
+  <li>
+    <p>It’s all about generalization.</p>
+
+    <p>The spike has left me with ugly code, but “working” code. I say, “working,” because I’ve only got manual tests to verify what “working” means. However, with working code in hand, now I can begin to see abstractions that I could only guess about before.</p>
+  </li>
+</ol>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p>How can I make SQL queries dynamic? How can I generalize a class’ attributes, based on database columns? How can I remove hardcoded dependencies on the <code class="highlighter-rouge">SQLite3</code> gem?</p>
+
+<p>Tomorrow, it’s into the fire with these questions in hand. Thankfully, Ruby allows us to answer these questions in many different ways. Hopefully, tests can drive us to the answers!</p>
+
+<p><a href="/labs/peel/Day_0">← Day 0</a>
+<a href="/labs/peel/Day_2">Day 2 →</a></p>
+
+      </div>
+      <div class="row footer">
+  <div class="col-3-sm">
+    <a  href="/">home.</a>
+  </div>
+  <div class="col-3-sm">
+    <a target="_blank" rel="noopener noreferrer" href="https://www.github.com/thomascountz">github.</a>
+  </div>
+  <div class="col-3-sm">
+    <a target="_blank" rel="noopener noreferrer" href="https://www.twitter.com/thomascountz">twitter.</a>
+  </div>
+</div>
+
+    </div>
+  </body>
+</html>

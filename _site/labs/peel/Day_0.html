@@ -1,0 +1,156 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>Thomas Countz</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.svg">
+    <link rel="stylesheet" href="/assets/css/simple-grid.css">
+    <link rel="stylesheet" href="/assets/css/styles.css">
+    <link rel="stylesheet" href="/assets/css/highlight.css">
+  </head>
+  <body>
+    <div class="container">
+      <div class="row header">
+  <div class="col-12">
+    <a href="/"><img src="/assets/images/c-lab-logo.svg" width="200"/></a>
+  </div>
+</div>
+
+      <div class="row">
+        <p><a href="/labs/peel">← Back to Lab</a></p>
+
+<h1 id="day-0">Day 0</h1>
+
+<h2 id="the-project">The Project</h2>
+
+<p>The goal of this project is to implement a feature-light ORM in Ruby, modeled after the Active Record <em>pattern</em> and inspired by Gregory Brown’s <a href="https://practicingruby.com/articles/implementing-the-active-record-pattern-1">Broken Record project</a>.</p>
+
+<p>“Pattern?” Up until this point, I knew about the <code class="highlighter-rouge">ActiveRecord</code> ORM that ships with Ruby on Rails, but I wasn’t aware that this was an implementation of the <em>active record pattern</em>…</p>
+
+<h2 id="init-research">Init Research</h2>
+
+<p>In <em>Patterns of Enterprise Application Architecture</em>, Martin Fowler introduces the Active Record pattern as:</p>
+
+<blockquote>
+  <p><em>…an object that wraps a row in a database table or view, encapsulates the database access, and adds domain logic on that data…</em></p>
+</blockquote>
+
+<p>This sounds like how one might describe Ruby on Rails’ <code class="highlighter-rouge">ActiveRecord</code>, and that’s no mistake. In the Ruby on Rails guides’ <a href="https://guides.rubyonrails.org/active_record_basics.html#the-active-record-pattern"><em>Active Record Basics</em></a>, they describe it like so:</p>
+
+<blockquote>
+  <p>It is an implementation of the Active Record pattern which itself is a description of an Object Relational Mapping system… In Active Record, objects carry both persistent data and behavior which operates on that data.</p>
+</blockquote>
+
+<p>Let’s say I have a database table called <code class="highlighter-rouge">users</code>, which has three columns, <code class="highlighter-rouge">id</code>, <code class="highlighter-rouge">firstname</code>, and <code class="highlighter-rouge">lastname</code>. I could represent this table, and some data in it, like this:</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>| id | firstname | lastname |
+|----|-----------|----------|
+|  0 | Simon     | Parker   |
+|  1 | Mary      | Souza    |
+|  2 | Tristen   | Lu-Chen  |
+</code></pre></div></div>
+
+<p>If I want to get the data for <code class="highlighter-rouge">Mary Souza</code>, I might write an SQL query like this:</p>
+
+<div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">SELECT</span> <span class="o">*</span> <span class="k">FROM</span> <span class="n">users</span> <span class="k">WHERE</span> <span class="n">id</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</code></pre></div></div>
+
+<p>And I could expect to get some data back like this:</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>| id | firstname | lastname |
+|----|-----------|----------|
+|  1 | Mary      | Souza    |
+</code></pre></div></div>
+
+<p>However, from my <em>application</em>, I might instead want to write something like this:</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>user = User.select_where(id: 1)
+</code></pre></div></div>
+
+<p>And get back and object like this:</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>#{User "id": 1, "firstname": "Mary", "lastname":"Souza"}
+</code></pre></div></div>
+
+<p>And supply behavior to that data, such as with a method called <code class="highlighter-rouge">fullname</code>:</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>user.fullname
+#=&gt; "Mary Souza"
+</code></pre></div></div>
+
+<p>This object is an Active Record object!</p>
+
+<p>It 1) wraps data from a row in the database, 2) encapsulates the retrieval of that data with the <code class="highlighter-rouge">.select_where</code> method, and 3) adds domain-specific behavior, with the <code class="highlighter-rouge">.fullname</code> method.</p>
+
+<p>Martin Fowler extends this descrption with the following:</p>
+
+<blockquote>
+  <p>The Active Record class typically has methods that do the following:</p>
+
+  <ul>
+    <li>Construct an instance of the Active Record from a SQL result set row</li>
+    <li>Construct a new instance for later insertion into the table</li>
+    <li>Static finder methods to wrap commonly used SQL queries and return Active Record objects</li>
+    <li>Update the database and insert into it the data in the Active Record</li>
+    <li>Get and set the fields</li>
+    <li>Implement some pieces of business logic</li>
+  </ul>
+</blockquote>
+
+<p>This sounds pretty good, and more often than not, if you’ve used Ruby on Rails, you are familiar with the core feature-set of the active record implementation. However, throughout the apprenticeship, I’ve learned to always take a moment ask if this is the most cost-effective solution.</p>
+
+<p><strong>Side Note</strong>: What defines “cost” will always vary widely from project to project, feature to feature. Some general things to keep in mind are how easy a solution is to implement/maintain, how much time will the implementation take, does it directly solve our problem, is the expected return greater than the cost of delivery, and does it matter? The definition of cost must be defined for every feature, so for our purposes, I’ll define cost as “does it directly solve our problem,” and with that, we must first identify the problem!</p>
+
+<p>For this project, the problem is, “Thomas needs a fun and exciting project to work on, he could benefit with some more time working with databases, and he loves working with Ruby, what should he build?” But, pushing that meta-problem aside, what problem does the active record pattern solve/when would we generally aim to implement it?</p>
+
+<blockquote>
+  <p>Active Record is a good choice for domain logic that isn’t too complex, such as creates, reads, updates, and deletes. Derivations and validations based on a single record work well in this structure… Their primary problem is that they work well only if the Active Record objects correspond directly to the database tables… Another argument against Active Record is the fact that it couples the object design to the database design.</p>
+
+  <p>Martin Fowler, <em>Patterns of Enterprise Application Architecture</em></p>
+</blockquote>
+
+<h2 id="whats-the-problem">What’s The Problem</h2>
+
+<p>Let’s invent a little MVP scenario to get shake things loose and get us thinking creatively.</p>
+
+<blockquote>
+  <p>We want to build a simple CRUD app to manage a global list of books in our library. We should be able to record a book’s title, author, and ISBN number.</p>
+</blockquote>
+
+<p>The Active Record pattern solves our scenario. Let’s also say that we’ve weighed all of the costs and the decision to implement Active Record has gotten the green light!</p>
+
+<p>Where do we go from here?</p>
+
+<h2 id="initial-thoughts-on-implementing-active-record">Initial Thoughts on Implementing Active Record</h2>
+
+<p>Without doing any more research at this point, I’ll begin by reiterating what I understand as the three major features that need to be implemented in order to deliver an Active Record object:</p>
+
+<ol>
+  <li>Abstract database connections/queries</li>
+  <li>Encapsulate data into an “Active Record” object</li>
+  <li>Provide an interface to add domain-specific behavior</li>
+</ol>
+
+<p>In the example presented in <em>Patterns of Enterprise Application Architecture</em>, Martin Fowler’s houses all of this within a single object, and I think I’ll begin with that approach.</p>
+
+<p>If we can implement a single Active Record object that connects to the database, wraps data, and provides an interface to that data, then maybe we can iterate until we end up with a reusable abstracted interfaces for composing new domain-specific Active Record objects.</p>
+
+<p><a href="/labs/peel/Day_1">Day 1 →</a></p>
+
+      </div>
+      <div class="row footer">
+  <div class="col-3-sm">
+    <a  href="/">home.</a>
+  </div>
+  <div class="col-3-sm">
+    <a target="_blank" rel="noopener noreferrer" href="https://www.github.com/thomascountz">github.</a>
+  </div>
+  <div class="col-3-sm">
+    <a target="_blank" rel="noopener noreferrer" href="https://www.twitter.com/thomascountz">twitter.</a>
+  </div>
+</div>
+
+    </div>
+  </body>
+</html>
