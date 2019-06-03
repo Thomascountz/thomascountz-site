@@ -1,0 +1,53 @@
+https://keybase.io/thomascountz
+--------------------------------------------------------------------
+
+I hereby claim:
+
+  * I am an admin of https://www.thomascountz.com
+  * I am thomascountz (https://keybase.io/thomascountz) on keybase.
+  * I have a public key ASC8Ou3Vfx6fn6eZBfQaeqzDbC6ob2qkyJi9Qjxa6P7IPgo
+
+To do so, I am signing this object:
+
+{
+  "body": {
+    "key": {
+      "eldest_kid": "0120bc3aedd57f1e9f9fa79905f41a7aacc36c2ea86f6aa4c898bd423c5ae8fec83e0a",
+      "host": "keybase.io",
+      "kid": "0120bc3aedd57f1e9f9fa79905f41a7aacc36c2ea86f6aa4c898bd423c5ae8fec83e0a",
+      "uid": "1a6fb5b4843cbd9327d8fd591e50eb19",
+      "username": "thomascountz"
+    },
+    "merkle_root": {
+      "ctime": 1559565894,
+      "hash": "b042dea70f0dcc8ec086e2b3138966d55e04b181a6adde75a70fbfa5d7c5cc4f9db19ce89ba03d1ab69ea40591a756955077d450faa01073fcc4a75145be63aa",
+      "hash_meta": "8c0ad72640634b58839764943d436c19b6325cec274a8d21a0d529ebe250a14c",
+      "seqno": 5497030
+    },
+    "service": {
+      "entropy": "9uPJ9+93OUX2lmOlFLps22at",
+      "hostname": "www.thomascountz.com",
+      "protocol": "https:"
+    },
+    "type": "web_service_binding",
+    "version": 2
+  },
+  "client": {
+    "name": "keybase.io go client",
+    "version": "4.0.0"
+  },
+  "ctime": 1559565907,
+  "expire_in": 504576000,
+  "prev": "a3e993229b531c14094f74af56a1dc36975afbe4a14b7ec17442e5282dbff0dd",
+  "seqno": 29,
+  "tag": "signature"
+}
+
+which yields the signature:
+
+hKRib2R5hqhkZXRhY2hlZMOpaGFzaF90eXBlCqNrZXnEIwEgvDrt1X8en5+nmQX0Gnqsw2wuqG9qpMiYvUI8Wuj+yD4Kp3BheWxvYWTESpcCHcQgo+mTIptTHBQJT3SvVqHcNpda++ShS37BdELlKC2/8N3EIE36ClIDITZP+jEExMbSaL9F5dQaK5H1RsbkmPPj7fWFAgHCo3NpZ8RAmNhvgzXjkWFxyAIZl8YSkap7BfS5JW0rOf596SyC/81xUujhMvEtF4aXBFJTR4SdLNdmkJU5fwQocuX4lFgpAqhzaWdfdHlwZSCkaGFzaIKkdHlwZQildmFsdWXEILZJ25kJIlZHOQiixX7xunAgOg/5I0XrLcrygNdEL752o3RhZ80CAqd2ZXJzaW9uAQ==
+
+And finally, I am proving ownership of this host by posting or
+appending to this document.
+
+View my publicly-auditable identity here: https://keybase.io/thomascountz
